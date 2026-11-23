@@ -53,3 +53,13 @@ rsconnect/
 src/*.o
 src/*.so
 src/*.dll
+# Dados brutos e saidas locais do projeto
+data/raw/*.csv
+data/raw/*.xlsx
+reports/*.html
+reports/*_files/
+figs/*.png
+figs/*.jpg
+figs/*.pdf
+results/*.csv
+results/*.rds

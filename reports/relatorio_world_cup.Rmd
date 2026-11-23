@@ -1,0 +1,12 @@
+---
+title: "Análise Exploratória - World Cup"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+```
+
+## Resumo
+
+Relatório inicial do projeto.
