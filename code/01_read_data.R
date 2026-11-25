@@ -1,23 +1,42 @@
-# Leitura e importacao dos dados brutos da World Cup
+base_dir <- if (exists("raiz_projeto")) raiz_projeto else "."
+raw_dir  <- file.path(base_dir, "data", "raw")
 
-source("code/99_my_functions.R")
+dir.create(raw_dir, recursive = TRUE, showWarnings = FALSE)
 
-load_world_cup_data <- function(raw_dir = "data/raw") {
-  worldcups <- ler_csv_seguro(file.path(raw_dir, "worldcups.csv"))
-  wcmatches <- ler_csv_seguro(file.path(raw_dir, "wcmatches.csv"))
-  
-  names(worldcups) <- tolower(trimws(names(worldcups)))
-  names(wcmatches) <- tolower(trimws(names(wcmatches)))
-  
-  if ("year" %in% names(worldcups)) {
-    worldcups$year <- as.integer(worldcups$year)
+arquivos_wc <- c(
+  "worldcups.csv" = "https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2022/2022-11-29/worldcups.csv",
+  "wcmatches.csv" = "https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2022/2022-11-29/wcmatches.csv"
+)
+
+for (nome in names(arquivos_wc)) {
+  destino <- file.path(raw_dir, nome)
+  if (!file.exists(destino)) {
+    download.file(arquivos_wc[[nome]], destfile = destino, mode = "wb")
   }
-  if ("year" %in% names(wcmatches)) {
-    wcmatches$year <- as.integer(wcmatches$year)
+}
+
+load_world_cup_data <- function(path_raw = raw_dir) {
+  dir.create(path_raw, recursive = TRUE, showWarnings = FALSE)
+  
+  for (nome in names(arquivos_wc)) {
+    destino <- file.path(path_raw, nome)
+    if (!file.exists(destino)) {
+      download.file(arquivos_wc[[nome]], destfile = destino, mode = "wb")
+    }
+  }
+  
+  worldcups_path <- file.path(path_raw, "worldcups.csv")
+  wcmatches_path <- file.path(path_raw, "wcmatches.csv")
+  
+  if (!file.exists(worldcups_path)) {
+    stop("Arquivo nao encontrado: ", worldcups_path)
+  }
+  if (!file.exists(wcmatches_path)) {
+    stop("Arquivo nao encontrado: ", wcmatches_path)
   }
   
   list(
-    worldcups = worldcups,
-    wcmatches = wcmatches
+    worldcups = utils::read.csv(worldcups_path, stringsAsFactors = FALSE),
+    wcmatches = utils::read.csv(wcmatches_path, stringsAsFactors = FALSE)
   )
 }

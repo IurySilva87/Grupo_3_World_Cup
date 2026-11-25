@@ -14,8 +14,8 @@ library(ggrepel)
 
 raiz_projeto <- if (file.exists("01_read_data.R") && file.exists("../data/raw")) {
   normalizePath("..", winslash = "/", mustWork = TRUE)
-} else if (file.exists("code/01_read_data.R")) {
-  normalizePath(".", winslash = "/", mustWork = TRUE)
+} else if (file.exists("code/01_read_data.R") || file.exists("app.R") || file.exists("project.Rproj")) {
+  normalizePath(getwd(), winslash = "/", mustWork = TRUE)
 } else {
   stop("Não foi possível localizar a raiz do projeto.")
 }
