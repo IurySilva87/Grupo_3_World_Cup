@@ -1,8 +1,12 @@
-install.packages("bsicons")
-
 library(shiny)
 library(bslib)
 library(bsicons)
+library(maps)
+library(dplyr)
+library(ggplot2)
+
+
+# Aba "Desempenho por seleção" do aplicativo Shiny
 
 raiz_projeto <- if (file.exists("01_read_data.R") && file.exists("../data/raw")) {
   normalizePath("..", winslash = "/", mustWork = TRUE)
@@ -280,6 +284,9 @@ decadas_lista <- lapply(seq(1930, 2010, by = 10), function(d) {
   )
 })
 
+
+# Interface do usuário (UI) do aplicativo Shiny (Painel Desempenho das seleções)
+
 ui <- page_navbar(
   title = "Estatísticas das Copas do Mundo de Futebol: 1930-2018",
   theme = bs_theme(version = 5, bootswatch = "flatly"),
@@ -342,10 +349,72 @@ ui <- page_navbar(
         )
       )
     )
-  )
-)
+  ),
 
-server <- function(input, output, session) {
+# Interface do usuário (UI) do aplicativo Shiny (Painel País sede e público)
+
+nav_panel(
+  "Público e Jogos",
+  layout_sidebar(
+    sidebar = sidebar(
+      width = 300,
+      selectInput(
+        "edicao_sede",
+        "Edição da Copa (Ano - País-Sede):",
+        choices = NULL # preenchido dinamicamente no server
+      ),
+      uiOutput("bandeiras_sede_ui"),
+      hr(),
+      p(strong("Filtrar por Cidade-Sede:"), class = "mb-1"),
+      div(
+        style = "max-height: 320px; overflow-y: auto;",
+        radioButtons(
+          "cidade_sede_filtro",
+          label = NULL,
+          choices = c("Todas as cidades" = "TODAS"),
+          selected = "TODAS"
+        )
+      )
+    ),
+    # Linha 1: Dois KPIs fixos/reativos lado a lado acima do mapa
+    layout_columns(
+      col_widths = c(6, 6),
+      value_box(
+        title = "Público Total da Edição",
+        value = textOutput("kpi_publico_edicao"),
+        showcase = bs_icon("people-fill"),
+        theme = "primary"
+      ),
+      value_box(
+        title = textOutput("titulo_kpi_cidade"),
+        value = textOutput("kpi_publico_cidade"),
+        showcase = bs_icon("geo-alt-fill"),
+        theme = "info"
+      )
+    ),
+    # Linha 2: Mapa do país-sede com alfinetes + Tabela de jogos filtrada
+    layout_columns(
+      col_widths = c(6, 6),
+      card(
+        card_header("Mapa das Cidades-Sede"),
+        plotOutput("mapa_sedes", height = "430px")
+      ),
+      card(
+        card_header("Partidas, Fases e Placares"),
+        div(
+          style = "max-height: 430px; overflow-y: auto;",
+          tableOutput("tabela_jogos_sede")
+        )
+      )
+    ) # fecha Linha 2: layout_columns
+  )   # fecha layout_sidebar
+))    # fecha nav_panel("Público e Jogos")
+    
+    
+  server <- function(input, output, session) {
+  
+  # Aba 1 - Desempenho por seleção
+  
   resumo_sel <- reactive({
     req(input$selecao_escolhida)
     calcular_desempenho(input$selecao_escolhida)
@@ -475,6 +544,228 @@ server <- function(input, output, session) {
     
     do.call(tagList, blocos)
   })
+   
+   # Aba 2 - Público e Jogosba 
+   # 1. Preparar opções do dropdown "Ano - País-Sede"
+   edicoes_opcoes <- wc_df %>%
+     arrange(year) %>%
+     mutate(
+       label_edicao = paste0(year, " - ", host)
+     )
+   
+   observe({
+     updateSelectInput(
+       session,
+       "edicao_sede",
+       choices = setNames(edicoes_opcoes$year, edicoes_opcoes$label_edicao),
+       selected = max(edicoes_opcoes$year)
+     )
+   })
+   
+   # 2. Bandeiras da(s) sede(s) — trata 2002 (Korea/Japan) com duas bandeiras
+   output$bandeiras_sede_ui <- renderUI({
+     req(input$edicao_sede)
+     ano_sel <- as.numeric(input$edicao_sede)
+     host_str <- wc_df$host[wc_df$year == ano_sel][1]
+     
+     # Dicionário ISO-2 para bandeiras via flagcdn
+     iso_sedes <- switch(
+       as.character(ano_sel),
+       "1930" = c("uy"),
+       "1934" = c("it"),
+       "1938" = c("fr"),
+       "1950" = c("br"),
+       "1954" = c("ch"),
+       "1958" = c("se"),
+       "1962" = c("cl"),
+       "1966" = c("gb-eng"),
+       "1970" = c("mx"),
+       "1974" = c("de"),
+       "1978" = c("ar"),
+       "1982" = c("es"),
+       "1986" = c("mx"),
+       "1990" = c("it"),
+       "1994" = c("us"),
+       "1998" = c("fr"),
+       "2002" = c("kr", "jp"), # Dupla sede: Coreia do Sul e Japão
+       "2006" = c("de"),
+       "2010" = c("za"),
+       "2014" = c("br"),
+       "2018" = c("ru"),
+       character(0)
+     )
+     
+     tags$div(
+       class = "d-flex align-items-center gap-2 my-2",
+       lapply(iso_sedes, function(code) {
+         tags$img(
+           src = paste0("https://flagcdn.com/w80/", code, ".png"),
+           height = "34px",
+           style = "border: 1px solid #dee2e6; border-radius: 4px;"
+         )
+       }),
+       tags$span(strong(host_str), class = "ms-1")
+     )
+   })
+   
+   # 3. Partidas da edição selecionada + atualização da lista clicável de cidades
+   partidas_edicao <- reactive({
+     req(input$edicao_sede)
+     m_df %>%
+       filter(year == as.numeric(input$edicao_sede)) %>%
+       mutate(city = trimws(city))
+   })
+   
+   observeEvent(partidas_edicao(), {
+     cidades <- sort(unique(na.omit(partidas_edicao()$city)))
+     updateRadioButtons(
+       session,
+       "cidade_sede_filtro",
+       choices = c("Todas as cidades" = "TODAS", setNames(cidades, cidades)),
+       selected = "TODAS"
+     )
+   })
+   
+   # 4. KPI 1: Público total fixo da edição
+   output$kpi_publico_edicao <- renderText({
+     req(input$edicao_sede)
+     pub <- wc_df$attendance[wc_df$year == as.numeric(input$edicao_sede)][1]
+     format(pub, big.mark = ".", decimal.mark = ",")
+   })
+   
+   # 5. KPI 2: Público por cidade selecionada (exato se houver coluna attendance em m_df, ou estimado proporcional)
+   output$titulo_kpi_cidade <- renderText({
+     req(input$cidade_sede_filtro)
+     if (input$cidade_sede_filtro == "TODAS") {
+       "Público Médio por Sede"
+     } else {
+       paste0("Público em ", input$cidade_sede_filtro)
+     }
+   })
+   
+   output$kpi_publico_cidade <- renderText({
+     req(input$edicao_sede, input$cidade_sede_filtro)
+     df_ed <- partidas_edicao()
+     pub_edicao <- wc_df$attendance[wc_df$year == as.numeric(input$edicao_sede)][1]
+     n_cidades <- n_distinct(df_ed$city, na.rm = TRUE)
+     
+     if ("attendance" %in% names(df_ed) && !all(is.na(df_ed$attendance))) {
+       if (input$cidade_sede_filtro == "TODAS") {
+         val <- round(sum(df_ed$attendance, na.rm = TRUE) / max(n_cidades, 1), 0)
+       } else {
+         val <- sum(df_ed$attendance[df_ed$city == input$cidade_sede_filtro], na.rm = TRUE)
+       }
+       format(val, big.mark = ".", decimal.mark = ",")
+     } else {
+       # Fallback caso wcmatches não tenha público individual por jogo
+       if (input$cidade_sede_filtro == "TODAS") {
+         val <- round(pub_edicao / max(n_cidades, 1), 0)
+       } else {
+         jogos_cid <- sum(df_ed$city == input$cidade_sede_filtro, na.rm = TRUE)
+         val <- round((pub_edicao / nrow(df_ed)) * jogos_cid, 0)
+       }
+       paste0("~", format(val, big.mark = ".", decimal.mark = ","), " (est.)")
+     }
+   })
+   
+   # 6. Mapa do país-sede com alfinetes nas cidades
+   output$mapa_sedes <- renderPlot({
+     req(input$edicao_sede)
+     ano_sel <- as.numeric(input$edicao_sede)
+     df_ed <- partidas_edicao()
+     
+     # Regiões no pacote maps (inclui Korea/Japan juntos em 2002)
+     regioes_mapa <- switch(
+       as.character(ano_sel),
+       "1930" = "Uruguay",
+       "1934" = "Italy",
+       "1938" = "France",
+       "1950" = "Brazil",
+       "1954" = "Switzerland",
+       "1958" = "Sweden",
+       "1962" = "Chile",
+       "1966" = "UK",
+       "1970" = "Mexico",
+       "1974" = "Germany",
+       "1978" = "Argentina",
+       "1982" = "Spain",
+       "1986" = "Mexico",
+       "1990" = "Italy",
+       "1994" = "USA",
+       "1998" = "France",
+       "2002" = c("South Korea", "North Korea", "Japan"),
+       "2006" = "Germany",
+       "2010" = "South Africa",
+       "2014" = "Brazil",
+       "2018" = "Russia",
+       "World"
+     )
+     
+     mapa_base <- map_data("world", region = regioes_mapa)
+     # Evita distorção da Rússia cruzando o antimeridiano (+180/-180)
+     if (ano_sel == 2018) mapa_base <- mapa_base %>% filter(long > 0)
+     
+     # Cruzamento offline com maps::world.cities para obter lat/long das cidades-sede
+     data("world.cities", package = "maps", envir = environment())
+     cidades_ed <- df_ed %>%
+       count(city, name = "jogos") %>%
+       left_join(
+         world.cities %>%
+           filter(country.etc %in% c(regioes_mapa, "Korea South", "England")) %>%
+           group_by(name) %>%
+           slice_max(pop, n = 1, with_ties = FALSE) %>%
+           ungroup(),
+         by = c("city" = "name")
+       ) %>%
+       filter(!is.na(lat), !is.na(long)) %>%
+       mutate(
+         destaque = ifelse(
+           input$cidade_sede_filtro != "TODAS" & city == input$cidade_sede_filtro,
+           "Selecionada", "Demais sedes"
+         )
+       )
+     
+     ggplot() +
+       geom_polygon(
+         data = mapa_base,
+         aes(x = long, y = lat, group = group),
+         fill = "#e9ecef", color = "#adb5bd", linewidth = 0.4
+       ) +
+       geom_point(
+         data = cidades_ed,
+         aes(x = long, y = lat, color = destaque, size = destaque),
+         shape = 17 # formato de marcador/alfinete
+       ) +
+       geom_text(
+         data = cidades_ed,
+         aes(x = long, y = lat, label = city, fontface = ifelse(destaque == "Selecionada", "bold", "plain")),
+         vjust = -1, size = 3.6, color = "#212529"
+       ) +
+       scale_color_manual(values = c("Selecionada" = "#dc3545", "Demais sedes" = "#0d6efd")) +
+       scale_size_manual(values = c("Selecionada" = 5, "Demais sedes" = 3.5)) +
+       coord_quickmap() +
+       theme_void() +
+       theme(legend.position = "none")
+   })
+   
+   # 7. Tabela de jogos filtrada pela sede (ou todas as sedes da edição)
+   output$tabela_jogos_sede <- renderTable({
+     req(input$cidade_sede_filtro)
+     df_tab <- partidas_edicao()
+     
+     if (input$cidade_sede_filtro != "TODAS") {
+       df_tab <- df_tab %>% filter(city == input$cidade_sede_filtro)
+     }
+     
+     df_tab %>%
+       transmute(
+         Fase = stage,
+         Partida = paste(home_team, "x", away_team),
+         Placar = paste0(home_score, " - ", away_score),
+         Sede = city
+       )
+   }, striped = TRUE, hover = TRUE, spacing = "xs", width = "100%")  
+   
 }
 
 shinyApp(ui = ui, server = server)
