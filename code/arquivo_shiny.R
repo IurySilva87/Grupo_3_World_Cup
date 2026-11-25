@@ -465,8 +465,133 @@ ui <- page_navbar(
         )
       )
     )
-  ))
+  ),
   
+# Interface do usuário (UI) do aplicativo Shiny (Desempenho das seleções por copa)
+
+nav_panel(
+  "Gols em Copas",
+  layout_sidebar(
+    sidebar = sidebar(
+      width = 290,
+      selectInput(
+        inputId = "edicao_gols",
+        label = "Edição da Copa (Ano - País-Sede):",
+        choices = NULL
+      ),
+      uiOutput("bandeiras_gols_ui"),
+      hr(),
+      p(strong("Selecione uma Seleção:"), class = "mb-1"),
+      div(
+        style = "max-height: 360px; overflow-y: auto;",
+        radioButtons(
+          inputId = "selecao_gols_filtro",
+          label = NULL,
+          choices = c("A carregar..." = ""),
+          selected = ""
+        )
+      )
+    ),
+    
+    # Linha 1: 2 cards fixos da edição (Total de Gols e Média de Gols por Jogo)
+    layout_columns(
+      col_widths = c(6, 6),
+      value_box(
+        title = div(
+          style = "text-align: center; width: 100%; font-size: 0.80rem; font-weight: 600;",
+          "Total de Gols da Copa"
+        ),
+        value = div(
+          style = "text-align: center; width: 100%; font-size: 1.6rem; font-weight: 700; line-height: 1.15;",
+          textOutput("kpi_total_gols_copa")
+        ),
+        showcase = bs_icon("trophy-fill"),
+        theme = "primary",
+        max_height = "95px"
+      ),
+      value_box(
+        title = div(
+          style = "text-align: center; width: 100%; font-size: 0.80rem; font-weight: 600;",
+          "Média de Gols por Jogo"
+        ),
+        value = div(
+          style = "text-align: center; width: 100%; font-size: 1.6rem; font-weight: 700; line-height: 1.15;",
+          textOutput("kpi_media_gols_jogo")
+        ),
+        showcase = bs_icon("bar-chart-fill"),
+        theme = "info",
+        max_height = "95px"
+      )
+    ),
+    
+    # Linha 2: 4 cards filtrados pela seleção clicada na edição
+    layout_columns(
+      col_widths = c(3, 3, 3, 3),
+      value_box(
+        title = div(
+          style = "text-align: center; width: 100%; font-size: 0.78rem; font-weight: 600;",
+          "Gols Marcados"
+        ),
+        value = div(
+          style = "text-align: center; width: 100%; font-size: 1.5rem; font-weight: 700; line-height: 1.15;",
+          textOutput("kpi_gols_marcados")
+        ),
+        showcase = bs_icon("plus-circle-fill"),
+        theme = "success",
+        max_height = "95px"
+      ),
+      value_box(
+        title = div(
+          style = "text-align: center; width: 100%; font-size: 0.78rem; font-weight: 600;",
+          "Gols Sofridos"
+        ),
+        value = div(
+          style = "text-align: center; width: 100%; font-size: 1.5rem; font-weight: 700; line-height: 1.15;",
+          textOutput("kpi_gols_sofridos")
+        ),
+        showcase = bs_icon("dash-circle-fill"),
+        theme = "danger",
+        max_height = "95px"
+      ),
+      value_box(
+        title = div(
+          style = "text-align: center; width: 100%; font-size: 0.78rem; font-weight: 600;",
+          "Saldo de Gols"
+        ),
+        value = div(
+          style = "text-align: center; width: 100%; font-size: 1.5rem; font-weight: 700; line-height: 1.15;",
+          textOutput("kpi_saldo_gols")
+        ),
+        showcase = bs_icon("arrows-expand"),
+        theme = "secondary",
+        max_height = "95px"
+      ),
+      value_box(
+        title = div(
+          style = "text-align: center; width: 100%; font-size: 0.78rem; font-weight: 600;",
+          "Posição Final"
+        ),
+        value = div(
+          style = "text-align: center; width: 100%; font-size: 1.5rem; font-weight: 700; line-height: 1.15;",
+          textOutput("kpi_posicao_final")
+        ),
+        showcase = bs_icon("award-fill"),
+        theme = "warning",
+        max_height = "95px"
+      )
+    ),
+    
+    # Linha 3: Tabela da edição (1.º ao último: posição, seleção, vitórias, derrotas)
+    card(
+      card_header("Classificação na Edição — Posição, Seleção, Vitórias e Derrotas"),
+      div(
+        style = "max-height: 460px; overflow-y: auto;",
+        tableOutput("tabela_posicoes_edicao")
+      )
+    )
+  )
+))
+
 # Servidor do aplicativo Shiny
 
 ## Traduçao dos nomes dos países sedes para português
@@ -1102,6 +1227,364 @@ traduzir_condicao_vitoria <- function(cond_vec) {
        Partida = paste(home_pt, "x", away_pt),
        Placar = placar_col,
        Sede = df_tab$city,
+       check.names = FALSE
+     )
+   }, striped = TRUE, hover = TRUE, spacing = "xs", align = "c", width = "100%")
+   
+   # Aba 3 - Desempenho das seleções por copa
+   
+   # --- Funções auxiliares para a aba Gols em Copas ---
+   if (!exists("traduzir_selecao_gols")) {
+     traduzir_selecao_gols <- function(x) {
+       if (exists("traduzir_selecao", mode = "function")) {
+         return(traduzir_selecao(x))
+       }
+       mapa <- c(
+         "Argentina" = "Argentina",
+         "Australia" = "Austrália",
+         "Austria" = "Áustria",
+         "Belgium" = "Bélgica",
+         "Bolivia" = "Bolívia",
+         "Brazil" = "Brasil",
+         "Bulgaria" = "Bulgária",
+         "Cameroon" = "Camarões",
+         "Canada" = "Canadá",
+         "Chile" = "Chile",
+         "China PR" = "China",
+         "Colombia" = "Colômbia",
+         "Costa Rica" = "Costa Rica",
+         "Croatia" = "Croácia",
+         "Cuba" = "Cuba",
+         "Czechoslovakia" = "Tchecoslováquia",
+         "Denmark" = "Dinamarca",
+         "Ecuador" = "Equador",
+         "Egypt" = "Egito",
+         "England" = "Inglaterra",
+         "France" = "França",
+         "Germany" = "Alemanha",
+         "Germany FR" = "Alemanha Ocidental",
+         "Ghana" = "Gana",
+         "Greece" = "Grécia",
+         "Hungary" = "Hungria",
+         "Iran" = "Irã",
+         "Iraq" = "Iraque",
+         "Ireland" = "Irlanda",
+         "Republic of Ireland" = "Irlanda",
+         "Northern Ireland" = "Irlanda do Norte",
+         "Israel" = "Israel",
+         "Italy" = "Itália",
+         "Ivory Coast" = "Costa do Marfim",
+         "Côte d'Ivoire" = "Costa do Marfim",
+         "Jamaica" = "Jamaica",
+         "Japan" = "Japão",
+         "Mexico" = "México",
+         "Morocco" = "Marrocos",
+         "Netherlands" = "Holanda",
+         "New Zealand" = "Nova Zelândia",
+         "Nigeria" = "Nigéria",
+         "North Korea" = "Coreia do Norte",
+         "Norway" = "Noruega",
+         "Panama" = "Panamá",
+         "Paraguay" = "Paraguai",
+         "Peru" = "Peru",
+         "Poland" = "Polônia",
+         "Portugal" = "Portugal",
+         "Romania" = "Romênia",
+         "Russia" = "Rússia",
+         "Saudi Arabia" = "Arábia Saudita",
+         "Scotland" = "Escócia",
+         "Senegal" = "Senegal",
+         "Serbia" = "Sérvia",
+         "Serbia and Montenegro" = "Sérvia e Montenegro",
+         "Slovakia" = "Eslováquia",
+         "Slovenia" = "Eslovênia",
+         "South Africa" = "África do Sul",
+         "South Korea" = "Coreia do Sul",
+         "Soviet Union" = "União Soviética",
+         "Spain" = "Espanha",
+         "Sweden" = "Suécia",
+         "Switzerland" = "Suíça",
+         "Togo" = "Togo",
+         "Trinidad and Tobago" = "Trinidad e Tobago",
+         "Tunisia" = "Tunísia",
+         "Turkey" = "Turquia",
+         "Ukraine" = "Ucrânia",
+         "United Arab Emirates" = "Emirados Árabes Unidos",
+         "United States" = "Estados Unidos",
+         "USA" = "Estados Unidos",
+         "Uruguay" = "Uruguai",
+         "Wales" = "País de Gales",
+         "Yugoslavia" = "Iugoslávia",
+         "Zaire" = "Zaire"
+       )
+       res <- unname(mapa[x])
+       ifelse(is.na(res) | res == "", x, res)
+     }
+   }
+   
+   traduzir_sede_gols <- function(host_str, ano = NULL) {
+     mapa_sedes <- c(
+       "Uruguay" = "Uruguai",
+       "Italy" = "Itália",
+       "France" = "França",
+       "Brazil" = "Brasil",
+       "Switzerland" = "Suíça",
+       "Sweden" = "Suécia",
+       "Chile" = "Chile",
+       "England" = "Inglaterra",
+       "Mexico" = "México",
+       "Germany" = "Alemanha",
+       "Germany FR" = "Alemanha Ocidental",
+       "Argentina" = "Argentina",
+       "Spain" = "Espanha",
+       "USA" = "Estados Unidos",
+       "United States" = "Estados Unidos",
+       "South Korea" = "Coreia do Sul",
+       "Korea, South" = "Coreia do Sul",
+       "Japan" = "Japão",
+       "South Africa" = "África do Sul",
+       "Russia" = "Rússia",
+       "Qatar" = "Catar"
+     )
+     vapply(seq_along(host_str), function(i) {
+       item <- host_str[i]
+       ano_i <- if (!is.null(ano)) ano[i] else NA
+       if (!is.na(ano_i) && as.numeric(ano_i) == 2002) {
+         return("Coreia do Sul - Japão")
+       }
+       if (is.na(item) || trimws(item) == "") return("")
+       partes <- trimws(unlist(strsplit(item, ",|/|-")))
+       partes <- partes[partes != ""]
+       partes_pt <- ifelse(partes %in% names(mapa_sedes), unname(mapa_sedes[partes]), traduzir_selecao_gols(partes))
+       paste(partes_pt, collapse = " - ")
+     }, character(1))
+   }
+   
+   # 1. Popular lista suspensa "Ano - País-Sede"
+   observe({
+     req(nrow(wc_df) > 0)
+     df_ord <- wc_df %>% dplyr::arrange(dplyr::desc(year))
+     labels_gols <- paste(df_ord$year, "-", traduzir_sede_gols(df_ord$host, df_ord$year))
+     opcoes <- setNames(as.character(df_ord$year), labels_gols)
+     
+     sel <- if (!is.null(input$edicao_gols) && input$edicao_gols %in% opcoes) {
+       input$edicao_gols
+     } else {
+       opcoes[1]
+     }
+     
+     updateSelectInput(
+       session,
+       inputId = "edicao_gols",
+       choices = opcoes,
+       selected = sel
+     )
+   })
+   
+   # 2. Bandeiras da(s) sede(s) da edição selecionada
+   output$bandeiras_gols_ui <- renderUI({
+     req(input$edicao_gols)
+     ano_sel <- as.numeric(input$edicao_gols)
+     
+     sedes_info <- switch(
+       as.character(ano_sel),
+       "1930" = c("uy" = "Uruguai"),
+       "1934" = c("it" = "Itália"),
+       "1938" = c("fr" = "França"),
+       "1950" = c("br" = "Brasil"),
+       "1954" = c("ch" = "Suíça"),
+       "1958" = c("se" = "Suécia"),
+       "1962" = c("cl" = "Chile"),
+       "1966" = c("gb-eng" = "Inglaterra"),
+       "1970" = c("mx" = "México"),
+       "1974" = c("de" = "Alemanha"),
+       "1978" = c("ar" = "Argentina"),
+       "1982" = c("es" = "Espanha"),
+       "1986" = c("mx" = "México"),
+       "1990" = c("it" = "Itália"),
+       "1994" = c("us" = "Estados Unidos"),
+       "1998" = c("fr" = "França"),
+       "2002" = c("kr" = "Coreia do Sul", "jp" = "Japão"),
+       "2006" = c("de" = "Alemanha"),
+       "2010" = c("za" = "África do Sul"),
+       "2014" = c("br" = "Brasil"),
+       "2018" = c("ru" = "Rússia"),
+       "2022" = c("qa" = "Catar"),
+       setNames(character(0), character(0))
+     )
+     
+     codigos <- names(sedes_info)
+     nomes_pt <- unname(sedes_info)
+     
+     elementos <- mapply(function(cod, nome) {
+       tags$div(
+         class = "d-flex align-items-center gap-2 mb-1",
+         tags$img(
+           src = paste0("https://flagcdn.com/w40/", cod, ".png"),
+           alt = nome,
+           height = "22px",
+           style = "border-radius: 2px; border: 1px solid #dee2e6;"
+         ),
+         tags$span(class = "fw-semibold", nome)
+       )
+     }, codigos, nomes_pt, SIMPLIFY = FALSE)
+     
+     tags$div(class = "mt-2", elementos)
+   })
+   
+   # 3. Partidas da edição selecionada
+   jogos_edicao_gols <- reactive({
+     req(input$edicao_gols)
+     m_df %>%
+       dplyr::filter(year == as.numeric(input$edicao_gols))
+   })
+   
+   # 4. Tabela consolidada de posições, gols e resultados por seleção na edição
+   classificacao_edicao_gols <- reactive({
+     req(input$edicao_gols)
+     ano_sel <- as.numeric(input$edicao_gols)
+     df_j <- jogos_edicao_gols()
+     req(nrow(df_j) > 0)
+     
+     mandantes <- df_j %>%
+       dplyr::transmute(
+         selecao_raw = home_team,
+         gols_pro = as.numeric(home_score),
+         gols_contra = as.numeric(away_score)
+       )
+     
+     visitantes <- df_j %>%
+       dplyr::transmute(
+         selecao_raw = away_team,
+         gols_pro = as.numeric(away_score),
+         gols_contra = as.numeric(home_score)
+       )
+     
+     resumo <- dplyr::bind_rows(mandantes, visitantes) %>%
+       dplyr::filter(!is.na(selecao_raw), trimws(selecao_raw) != "") %>%
+       dplyr::group_by(selecao_raw) %>%
+       dplyr::summarise(
+         jogos = dplyr::n(),
+         gols_marcados = sum(gols_pro, na.rm = TRUE),
+         gols_sofridos = sum(gols_contra, na.rm = TRUE),
+         saldo_gols = gols_marcados - gols_sofridos,
+         vitorias = sum(gols_pro > gols_contra, na.rm = TRUE),
+         empates = sum(gols_pro == gols_contra, na.rm = TRUE),
+         derrotas = sum(gols_pro < gols_contra, na.rm = TRUE),
+         pontos = vitorias * 3 + empates,
+         .groups = "drop"
+       )
+     
+     linha_wc <- wc_df[wc_df$year == ano_sel, , drop = FALSE]
+     podio_rank <- rep(NA_integer_, nrow(resumo))
+     
+     if (nrow(linha_wc) > 0) {
+       if ("winner" %in% names(linha_wc) && !is.na(linha_wc$winner[1])) {
+         podio_rank[resumo$selecao_raw == linha_wc$winner[1]] <- 1L
+       }
+       if ("second" %in% names(linha_wc) && !is.na(linha_wc$second[1])) {
+         podio_rank[resumo$selecao_raw == linha_wc$second[1]] <- 2L
+       }
+       if ("third" %in% names(linha_wc) && !is.na(linha_wc$third[1])) {
+         podio_rank[resumo$selecao_raw == linha_wc$third[1]] <- 3L
+       }
+       if ("fourth" %in% names(linha_wc) && !is.na(linha_wc$fourth[1])) {
+         podio_rank[resumo$selecao_raw == linha_wc$fourth[1]] <- 4L
+       }
+     }
+     
+     resumo %>%
+       dplyr::mutate(
+         podio_rank = podio_rank,
+         selecao_pt = traduzir_selecao_gols(selecao_raw)
+       ) %>%
+       dplyr::arrange(
+         dplyr::desc(!is.na(podio_rank)),
+         dplyr::coalesce(podio_rank, 999L),
+         dplyr::desc(pontos),
+         dplyr::desc(saldo_gols),
+         dplyr::desc(gols_marcados),
+         selecao_pt
+       ) %>%
+       dplyr::mutate(
+         posicao = dplyr::row_number(),
+         posicao_rotulo = paste0(posicao, "º")
+       )
+   })
+   
+   # 5. Atualizar lista clicável de seleções participantes da edição
+   observeEvent(classificacao_edicao_gols(), {
+     df_c <- classificacao_edicao_gols()
+     req(nrow(df_c) > 0)
+     
+     opcoes_sel <- setNames(df_c$selecao_raw, df_c$selecao_pt)
+     sel_atual <- if (!is.null(input$selecao_gols_filtro) && input$selecao_gols_filtro %in% opcoes_sel) {
+       input$selecao_gols_filtro
+     } else {
+       opcoes_sel[1]
+     }
+     
+     updateRadioButtons(
+       session,
+       inputId = "selecao_gols_filtro",
+       choices = opcoes_sel,
+       selected = sel_atual
+     )
+   })
+   
+   # 6. Cards fixos da edição: Total de Gols da Copa e Média de Gols por Jogo
+   output$kpi_total_gols_copa <- renderText({
+     req(input$edicao_gols)
+     ano_sel <- as.numeric(input$edicao_gols)
+     total_gols <- wc_df$goals_scored[wc_df$year == ano_sel][1]
+     req(!is.na(total_gols))
+     format(total_gols, big.mark = ".", decimal.mark = ",")
+   })
+   
+   output$kpi_media_gols_jogo <- renderText({
+     req(input$edicao_gols)
+     ano_sel <- as.numeric(input$edicao_gols)
+     linha_ed <- wc_df[wc_df$year == ano_sel, , drop = FALSE][1, , drop = FALSE]
+     req(nrow(linha_ed) > 0, !is.na(linha_ed$goals_scored), !is.na(linha_ed$games), linha_ed$games > 0)
+     media_jogo <- linha_ed$goals_scored / linha_ed$games
+     format(round(media_jogo, 2), nsmall = 2, decimal.mark = ",")
+   })
+   
+   # 7. Cards filtrados pela seleção clicada na edição
+   selecao_stats_gols <- reactive({
+     req(input$selecao_gols_filtro)
+     df_c <- classificacao_edicao_gols()
+     linha <- df_c %>% dplyr::filter(selecao_raw == input$selecao_gols_filtro)
+     req(nrow(linha) > 0)
+     linha[1, , drop = FALSE]
+   })
+   
+   output$kpi_gols_marcados <- renderText({
+     format(selecao_stats_gols()$gols_marcados, big.mark = ".", decimal.mark = ",")
+   })
+   
+   output$kpi_gols_sofridos <- renderText({
+     format(selecao_stats_gols()$gols_sofridos, big.mark = ".", decimal.mark = ",")
+   })
+   
+   output$kpi_saldo_gols <- renderText({
+     saldo <- selecao_stats_gols()$saldo_gols
+     sinal <- if (saldo > 0) "+" else ""
+     paste0(sinal, format(saldo, big.mark = ".", decimal.mark = ","))
+   })
+   
+   output$kpi_posicao_final <- renderText({
+     selecao_stats_gols()$posicao_rotulo
+   })
+   
+   # 8. Tabela filtrada pela edição: posição (1.º ao último), seleção, vitórias, derrotas
+   output$tabela_posicoes_edicao <- renderTable({
+     df_c <- classificacao_edicao_gols()
+     data.frame(
+       `Posição` = df_c$posicao_rotulo,
+       `Seleção` = df_c$selecao_pt,
+       `Vitórias` = df_c$vitorias,
+       `Derrotas` = df_c$derrotas,
        check.names = FALSE
      )
    }, striped = TRUE, hover = TRUE, spacing = "xs", align = "c", width = "100%")
