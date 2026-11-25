@@ -1,9 +1,13 @@
+
+# Bibliotecas
+
 library(shiny)
 library(bslib)
 library(bsicons)
 library(maps)
 library(dplyr)
 library(ggplot2)
+library(ggrepel)
 
 
 # Aba "Desempenho por seleção" do aplicativo Shiny
@@ -351,65 +355,219 @@ ui <- page_navbar(
     )
   ),
 
-# Interface do usuário (UI) do aplicativo Shiny (Painel País sede e público)
-
-nav_panel(
-  "Público e Jogos",
-  layout_sidebar(
-    sidebar = sidebar(
-      width = 300,
-      selectInput(
-        "edicao_sede",
-        "Edição da Copa (Ano - País-Sede):",
-        choices = NULL # preenchido dinamicamente no server
-      ),
-      uiOutput("bandeiras_sede_ui"),
-      hr(),
-      p(strong("Filtrar por Cidade-Sede:"), class = "mb-1"),
-      div(
-        style = "max-height: 320px; overflow-y: auto;",
-        radioButtons(
-          "cidade_sede_filtro",
-          label = NULL,
-          choices = c("Todas as cidades" = "TODAS"),
-          selected = "TODAS"
-        )
-      )
-    ),
-    # Linha 1: Dois KPIs fixos/reativos lado a lado acima do mapa
-    layout_columns(
-      col_widths = c(6, 6),
-      value_box(
-        title = "Público Total da Edição",
-        value = textOutput("kpi_publico_edicao"),
-        showcase = bs_icon("people-fill"),
-        theme = "primary"
-      ),
-      value_box(
-        title = textOutput("titulo_kpi_cidade"),
-        value = textOutput("kpi_publico_cidade"),
-        showcase = bs_icon("geo-alt-fill"),
-        theme = "info"
-      )
-    ),
-    # Linha 2: Mapa do país-sede com alfinetes + Tabela de jogos filtrada
-    layout_columns(
-      col_widths = c(6, 6),
-      card(
-        card_header("Mapa das Cidades-Sede"),
-        plotOutput("mapa_sedes", height = "430px")
-      ),
-      card(
-        card_header("Partidas, Fases e Placares"),
+  # Interface do usuário (UI) do aplicativo Shiny (Painel País sede e público)
+  
+  nav_panel(
+    "Países, cidades sedes e Jogos",
+    layout_sidebar(
+      sidebar = sidebar(
+        width = 280,
+        selectInput(
+          "edicao_sede",
+          "Edição da Copa (Ano - País-Sede):",
+          choices = NULL
+        ),
+        uiOutput("bandeiras_sede_ui"),
+        hr(),
+        p(strong("Filtrar por Cidade-Sede:"), class = "mb-1"),
         div(
-          style = "max-height: 430px; overflow-y: auto;",
-          tableOutput("tabela_jogos_sede")
+          style = "max-height: 380px; overflow-y: auto;",
+          radioButtons(
+            "cidade_sede_filtro",
+            label = NULL,
+            choices = c("Todas as cidades" = "TODAS"),
+            selected = "TODAS"
+          )
+        )
+      ),
+      
+      # Linha 1: Público Total + cards fixos (Jogos, Seleções, Sedes) + Sede
+      
+      layout_columns(
+        col_widths = c(3, 2, 2, 2, 3),
+        value_box(
+          title = div(
+            style = "text-align: center; width: 100%; font-size: 1.00rem; font-weight: 500; opacity: 0.85;",
+            "Público Total na edição da Copa"
+          ),
+          value = div(
+            style = "text-align: center; width: 100%; font-size: 2.5rem; font-weight: 700; line-height: 1.15;",
+            textOutput("kpi_publico_edicao")
+          ),
+          showcase = bs_icon("people-fill"),
+          theme = "primary",
+          max_height = "120px"
+        ),
+        value_box(
+          title = div(
+            style = "text-align: center; width: 100%; font-size: 1.0rem; font-weight: 500; opacity: 0.85;",
+            "Total de Jogos"
+          ),
+          value = div(
+            style = "text-align: center; width: 100%; font-size: 2.5rem; font-weight: 700; line-height: 1.15;",
+            textOutput("kpi_total_jogos")
+          ),
+          theme = "secondary",
+          max_height = "120px"
+        ),
+        value_box(
+          title = div(
+            style = "text-align: center; width: 100%; font-size: 1.0rem; font-weight: 500; opacity: 0.85;",
+            "Total de Seleções"
+          ),
+          value = div(
+            style = "text-align: center; width: 100%; font-size: 2.5rem; font-weight: 700; line-height: 1.15;",
+            textOutput("kpi_total_selecoes")
+          ),
+          theme = "secondary",
+          max_height = "120px"
+        ),
+        value_box(
+          title = div(
+            style = "text-align: center; width: 100%; font-size: 1.0rem; font-weight: 500; opacity: 0.85;",
+            "Número de Sedes"
+          ),
+          value = div(
+            style = "text-align: center; width: 100%; font-size: 2.5rem; font-weight: 700; line-height: 1.15;",
+            textOutput("kpi_num_sedes")
+          ),
+          theme = "secondary",
+          max_height = "120px"
+        ),
+        value_box(
+          title = div(
+            style = "text-align: center; width: 100%; font-size: 1.00rem; font-weight: 500; opacity: 0.85;",
+            textOutput("titulo_kpi_cidade")
+          ),
+          value = div(
+            style = "text-align: center; width: 100%; line-height: 1.0;",
+            div(textOutput("kpi_publico_cidade"), style = "font-size: 2.5rem; font-weight: 700;"),
+            div(textOutput("sub_kpi_cidade"), style = "font-size: 1.0rem; opacity: 0.85; margin-top: 2px;")
+          ),
+          showcase = bs_icon("geo-alt-fill"),
+          theme = "info",
+          max_height = "120px"
+        )
+      ),
+      # Linha 2: Mapa das cidades-sede + Tabela de partidas
+      layout_columns(
+        col_widths = c(6, 6),
+        card(
+          card_header("Mapa das Cidades-Sede"),
+          plotOutput("mapa_sedes", height = "480px")
+        ),
+        card(
+          card_header("Partidas, Fases e Placares"),
+          div(
+            style = "max-height: 480px; overflow-y: auto;",
+            tableOutput("tabela_jogos_sede")
+          )
         )
       )
-    ) # fecha Linha 2: layout_columns
-  )   # fecha layout_sidebar
-))    # fecha nav_panel("Público e Jogos")
+    )
+  ))
+  
+# Servidor do aplicativo Shiny
+
+## Traduçao dos nomes dos países sedes para português
+
+traduzir_pais_sede <- function(host_str) {
+  mapa_sedes <- c(
+    "Uruguay" = "Uruguai",
+    "Italy" = "Itália",
+    "France" = "França",
+    "Brazil" = "Brasil",
+    "Switzerland" = "Suíça",
+    "Sweden" = "Suécia",
+    "Chile" = "Chile",
+    "England" = "Inglaterra",
+    "Mexico" = "México",
+    "Germany" = "Alemanha",
+    "Germany FR" = "Alemanha Ocidental",
+    "Argentina" = "Argentina",
+    "Spain" = "Espanha",
+    "USA" = "Estados Unidos",
+    "United States" = "Estados Unidos",
+    "South Korea" = "Coreia do Sul",
+    "Japan" = "Japão",
+    "South Africa" = "África do Sul",
+    "Russia" = "Rússia"
+  )
+  
+  vapply(host_str, function(item) {
+    if (is.na(item) || item == "") return(item)
+    partes <- trimws(strsplit(item, ",")[[1]])
+    partes_pt <- ifelse(partes %in% names(mapa_sedes), mapa_sedes[partes], traduzir_selecao(partes))
+    paste(partes_pt, collapse = ", ")
+  }, character(1))
+}
+
+traduzir_fase <- function(fase_vec) {
+  mapa_fases <- c(
+    "Group stage" = "Fase de Grupos",
+    "Group A" = "Grupo A",
+    "Group B" = "Grupo B",
+    "Group C" = "Grupo C",
+    "Group D" = "Grupo D",
+    "Group E" = "Grupo E",
+    "Group F" = "Grupo F",
+    "Group G" = "Grupo G",
+    "Group H" = "Grupo H",
+    "Round of 16" = "Oitavas de Final",
+    "Quarterfinals" = "Quartas de Final",
+    "Quarter-finals" = "Quartas de Final",
+    "Semifinals" = "Semifinal",
+    "Semi-finals" = "Semifinal",
+    "Third place match" = "Disputa do 3º Lugar",
+    "Third-place match" = "Disputa do 3º Lugar",
+    "Match for third place" = "Disputa do 3º Lugar",
+    "Final" = "Final"
+  )
+  
+  vapply(fase_vec, function(f) {
+    if (is.na(f) || trimws(f) == "") return(f)
+    f_clean <- trimws(f)
+    if (f_clean %in% names(mapa_fases)) unname(mapa_fases[f_clean]) else f_clean
+  }, character(1))
+}
+
+traduzir_condicao_vitoria <- function(cond_vec) {
+  vapply(cond_vec, function(txt) {
+    if (is.na(txt) || trimws(txt) == "") return("")
+    res <- trimws(txt)
     
+    res <- sub(
+      "^(.+?)\\s+won\\s+(?:in|on)\\s+penalties\\s*\\(([^)]+)\\)$",
+      "\\1 venceu nos pênaltis (\\2)",
+      res,
+      ignore.case = TRUE
+    )
+    
+    res <- sub(
+      "^(.+?)\\s+won\\s+(?:in|on)\\s+penalties$",
+      "\\1 venceu nos pênaltis",
+      res,
+      ignore.case = TRUE
+    )
+    
+    res <- sub(
+      "^(.+?)\\s+won\\s+(?:in\\s+AET|after\\s+extra\\s+time)$",
+      "\\1 venceu na prorrogação",
+      res,
+      ignore.case = TRUE
+    )
+    
+    m <- regexec("^(.+?)\\s+venceu\\s+(.*)$", res)
+    partes <- regmatches(res, m)[[1]]
+    if (length(partes) == 3) {
+      time_pt <- traduzir_selecao(partes[2])
+      res <- paste0(time_pt, " venceu ", partes[3])
+    }
+    
+    res
+  }, character(1))
+}
+
     
   server <- function(input, output, session) {
   
@@ -545,7 +703,8 @@ nav_panel(
     do.call(tagList, blocos)
   })
    
-   # Aba 2 - Público e Jogosba 
+   # Aba 2 - Público e Jogos
+   
    # 1. Preparar opções do dropdown "Ano - País-Sede"
    edicoes_opcoes <- wc_df %>%
      arrange(year) %>%
@@ -554,57 +713,75 @@ nav_panel(
      )
    
    observe({
-     updateSelectInput(
-       session,
-       "edicao_sede",
-       choices = setNames(edicoes_opcoes$year, edicoes_opcoes$label_edicao),
-       selected = max(edicoes_opcoes$year)
-     )
+     req(nrow(wc_df) > 0)
+     df_ord <- wc_df %>% arrange(desc(year))
+     labels_pt <- paste0(df_ord$year, " - ", traduzir_pais_sede(df_ord$host))
+     opcoes_edicao <- setNames(as.character(df_ord$year), labels_pt)
+     
+     sel_atual <- if (!is.null(input$edicao_sede) && input$edicao_sede %in% opcoes_edicao) {
+       input$edicao_sede
+     } else {
+       opcoes_edicao[1]
+     }
+     
+     updateSelectInput(session, "edicao_sede", choices = opcoes_edicao, selected = sel_atual)
    })
    
    # 2. Bandeiras da(s) sede(s) — trata 2002 (Korea/Japan) com duas bandeiras
+   
    output$bandeiras_sede_ui <- renderUI({
      req(input$edicao_sede)
      ano_sel <- as.numeric(input$edicao_sede)
      host_str <- wc_df$host[wc_df$year == ano_sel][1]
+     req(!is.na(host_str), host_str != "")
      
      # Dicionário ISO-2 para bandeiras via flagcdn
+     
      iso_sedes <- switch(
        as.character(ano_sel),
-       "1930" = c("uy"),
-       "1934" = c("it"),
-       "1938" = c("fr"),
-       "1950" = c("br"),
-       "1954" = c("ch"),
-       "1958" = c("se"),
-       "1962" = c("cl"),
-       "1966" = c("gb-eng"),
-       "1970" = c("mx"),
-       "1974" = c("de"),
-       "1978" = c("ar"),
-       "1982" = c("es"),
-       "1986" = c("mx"),
-       "1990" = c("it"),
-       "1994" = c("us"),
-       "1998" = c("fr"),
-       "2002" = c("kr", "jp"), # Dupla sede: Coreia do Sul e Japão
-       "2006" = c("de"),
-       "2010" = c("za"),
-       "2014" = c("br"),
-       "2018" = c("ru"),
-       character(0)
+       "1930" = c("uy" = "Uruguai"),
+       "1934" = c("it" = "Itália"),
+       "1938" = c("fr" = "França"),
+       "1950" = c("br" = "Brasil"),
+       "1954" = c("ch" = "Suíça"),
+       "1958" = c("se" = "Suécia"),
+       "1962" = c("cl" = "Chile"),
+       "1966" = c("gb-eng" = "Inglaterra"),
+       "1970" = c("mx" = "México"),
+       "1974" = c("de" = "Alemanha"),
+       "1978" = c("ar" = "Argentina"),
+       "1982" = c("es" = "Espanha"),
+       "1986" = c("mx" = "México"),
+       "1990" = c("it" = "Itália"),
+       "1994" = c("us" = "Estados Unidos"),
+       "1998" = c("fr" = "França"),
+       "2002" = c("kr" = "Coreia do Sul", "jp" = "Japão"),
+       "2006" = c("de" = "Alemanha"),
+       "2010" = c("za" = "África do Sul"),
+       "2014" = c("br" = "Brasil"),
+       "2018" = c("ru" = "Rússia"),
+       setNames(character(0), character(0))
      )
      
-     tags$div(
-       class = "d-flex align-items-center gap-2 my-2",
-       lapply(iso_sedes, function(code) {
+     codigos_iso <- names(iso_sedes)
+     nomes_pt <- unname(iso_sedes)
+     
+     elementos <- mapply(function(cod_iso, nome_pt) {
+       tags$div(
+         class = "d-flex align-items-center gap-2 mb-1",
          tags$img(
-           src = paste0("https://flagcdn.com/w80/", code, ".png"),
-           height = "34px",
-           style = "border: 1px solid #dee2e6; border-radius: 4px;"
-         )
-       }),
-       tags$span(strong(host_str), class = "ms-1")
+           src = paste0("https://flagcdn.com/w40/", cod_iso, ".png"),
+           alt = nome_pt,
+           height = "22px",
+           style = "border-radius: 2px; border: 1px solid #dee2e6;"
+         ),
+         tags$span(class = "fw-semibold", nome_pt)
+       )
+     }, codigos_iso, nomes_pt, SIMPLIFY = FALSE)
+     
+     tags$div(
+       class = "mt-2",
+       elementos
      )
    })
    
@@ -626,55 +803,55 @@ nav_panel(
      )
    })
    
-   # 4. KPI 1: Público total fixo da edição
+   # 4. KPI 1: Público total fixo + total de jogos da edição
+   
    output$kpi_publico_edicao <- renderText({
      req(input$edicao_sede)
      pub <- wc_df$attendance[wc_df$year == as.numeric(input$edicao_sede)][1]
      format(pub, big.mark = ".", decimal.mark = ",")
    })
    
-   # 5. KPI 2: Público por cidade selecionada (exato se houver coluna attendance em m_df, ou estimado proporcional)
+   output$kpi_total_jogos <- renderText({
+     req(input$edicao_sede)
+     row_ed <- wc_df[wc_df$year == as.numeric(input$edicao_sede), ][1, ]
+     row_ed$games
+   })
+   
+   output$kpi_total_selecoes <- renderText({
+     req(input$edicao_sede)
+     row_ed <- wc_df[wc_df$year == as.numeric(input$edicao_sede), ][1, ]
+     row_ed$teams
+   })
+   
+   output$kpi_num_sedes <- renderText({
+     req(input$edicao_sede)
+     n_distinct(partidas_edicao()$city, na.rm = TRUE)
+   })
+   
+   # 5. KPI 2 (card azul): Nome da sede e número de jogos realizados na sede
+   
    output$titulo_kpi_cidade <- renderText({
      req(input$cidade_sede_filtro)
-     if (input$cidade_sede_filtro == "TODAS") {
-       "Público Médio por Sede"
-     } else {
-       paste0("Público em ", input$cidade_sede_filtro)
-     }
+     if (input$cidade_sede_filtro == "TODAS") "Todas as Sedes" else input$cidade_sede_filtro
    })
    
    output$kpi_publico_cidade <- renderText({
      req(input$edicao_sede, input$cidade_sede_filtro)
      df_ed <- partidas_edicao()
-     pub_edicao <- wc_df$attendance[wc_df$year == as.numeric(input$edicao_sede)][1]
-     n_cidades <- n_distinct(df_ed$city, na.rm = TRUE)
-     
-     if ("attendance" %in% names(df_ed) && !all(is.na(df_ed$attendance))) {
-       if (input$cidade_sede_filtro == "TODAS") {
-         val <- round(sum(df_ed$attendance, na.rm = TRUE) / max(n_cidades, 1), 0)
-       } else {
-         val <- sum(df_ed$attendance[df_ed$city == input$cidade_sede_filtro], na.rm = TRUE)
-       }
-       format(val, big.mark = ".", decimal.mark = ",")
-     } else {
-       # Fallback caso wcmatches não tenha público individual por jogo
-       if (input$cidade_sede_filtro == "TODAS") {
-         val <- round(pub_edicao / max(n_cidades, 1), 0)
-       } else {
-         jogos_cid <- sum(df_ed$city == input$cidade_sede_filtro, na.rm = TRUE)
-         val <- round((pub_edicao / nrow(df_ed)) * jogos_cid, 0)
-       }
-       paste0("~", format(val, big.mark = ".", decimal.mark = ","), " (est.)")
-     }
+     if (input$cidade_sede_filtro == "TODAS") nrow(df_ed) else sum(df_ed$city == input$cidade_sede_filtro, na.rm = TRUE)
    })
    
-   # 6. Mapa do país-sede com alfinetes nas cidades
+   output$sub_kpi_cidade <- renderText({
+     req(input$cidade_sede_filtro)
+     if (input$cidade_sede_filtro == "TODAS") "total de jogos na edição" else "jogos na sede"
+   })
+   
+   # 6. Mapa do país-sede com correção de nomes de cidades, zoom e rótulos sem sobreposição
    output$mapa_sedes <- renderPlot({
      req(input$edicao_sede)
      ano_sel <- as.numeric(input$edicao_sede)
      df_ed <- partidas_edicao()
      
-     # Regiões no pacote maps (inclui Korea/Japan juntos em 2002)
      regioes_mapa <- switch(
        as.character(ano_sel),
        "1930" = "Uruguay",
@@ -702,20 +879,43 @@ nav_panel(
      )
      
      mapa_base <- map_data("world", region = regioes_mapa)
-     # Evita distorção da Rússia cruzando o antimeridiano (+180/-180)
      if (ano_sel == 2018) mapa_base <- mapa_base %>% filter(long > 0)
      
-     # Cruzamento offline com maps::world.cities para obter lat/long das cidades-sede
+     mapa_nomes_cidades <- c(
+       "Ekaterinburg" = "Yekaterinburg",
+       "Nizhny Novgorod" = "Nizhniy Novgorod",
+       "Rostov-on-Don" = "Rostov-na-Donu",
+       "Saint Petersburg" = "Saint Petersburg",
+       "St. Petersburg" = "Saint Petersburg",
+       "Rio De Janeiro" = "Rio de Janeiro",
+       "Sao Paulo" = "Sao Paulo",
+       "Brasilia" = "Brasilia",
+       "Cuiaba" = "Cuiaba",
+       "Foxborough" = "Boston",
+       "East Rutherford" = "New York",
+       "Pasadena" = "Los Angeles",
+       "Stanford" = "San Francisco",
+       "Pontiac" = "Detroit",
+       "Saint-Denis" = "Paris",
+       "Gelsenkirchen" = "Gelsenkirchen",
+       "Kaiserslautern" = "Kaiserslautern"
+     )
+     
      data("world.cities", package = "maps", envir = environment())
+     paises_wc <- unique(c(regioes_mapa, "Korea South", "England", "Scotland", "Wales"))
+     
      cidades_ed <- df_ed %>%
        count(city, name = "jogos") %>%
+       mutate(
+         city_lookup = ifelse(city %in% names(mapa_nomes_cidades), mapa_nomes_cidades[city], city)
+       ) %>%
        left_join(
          world.cities %>%
-           filter(country.etc %in% c(regioes_mapa, "Korea South", "England")) %>%
+           filter(country.etc %in% paises_wc) %>%
            group_by(name) %>%
            slice_max(pop, n = 1, with_ties = FALSE) %>%
            ungroup(),
-         by = c("city" = "name")
+         by = c("city_lookup" = "name")
        ) %>%
        filter(!is.na(lat), !is.na(long)) %>%
        mutate(
@@ -725,30 +925,155 @@ nav_panel(
          )
        )
      
+     xlim_val <- NULL
+     ylim_val <- NULL
+     if (ano_sel == 2018) {
+       xlim_val <- c(19, 63)
+       ylim_val <- c(42, 62)
+     } else if (ano_sel == 1994) {
+       xlim_val <- c(-126, -66)
+       ylim_val <- c(24, 50)
+     } else if (ano_sel == 1998 || ano_sel == 1938) {
+       xlim_val <- c(-5.5, 9.8)
+       ylim_val <- c(41.3, 51.3)
+     } else if (ano_sel == 1982) {
+       xlim_val <- c(-9.5, 4.5)
+       ylim_val <- c(35.8, 44.0)
+     }
+     
      ggplot() +
        geom_polygon(
          data = mapa_base,
          aes(x = long, y = lat, group = group),
-         fill = "#e9ecef", color = "#adb5bd", linewidth = 0.4
+         fill = "#f1f3f5", color = "#adb5bd", linewidth = 0.45
        ) +
        geom_point(
          data = cidades_ed,
          aes(x = long, y = lat, color = destaque, size = destaque),
-         shape = 17 # formato de marcador/alfinete
+         shape = 17
        ) +
-       geom_text(
+       geom_text_repel(
          data = cidades_ed,
-         aes(x = long, y = lat, label = city, fontface = ifelse(destaque == "Selecionada", "bold", "plain")),
-         vjust = -1, size = 3.6, color = "#212529"
+         aes(
+           x = long, y = lat, label = city,
+           color = destaque,
+           fontface = ifelse(destaque == "Selecionada", "bold", "plain")
+         ),
+         size = 3.6,
+         box.padding = 0.35,
+         point.padding = 0.25,
+         segment.color = "#868e96",
+         segment.size = 0.3,
+         max.overlaps = Inf
        ) +
        scale_color_manual(values = c("Selecionada" = "#dc3545", "Demais sedes" = "#0d6efd")) +
-       scale_size_manual(values = c("Selecionada" = 5, "Demais sedes" = 3.5)) +
-       coord_quickmap() +
+       scale_size_manual(values = c("Selecionada" = 5.5, "Demais sedes" = 3.5)) +
+       coord_quickmap(xlim = xlim_val, ylim = ylim_val) +
        theme_void() +
        theme(legend.position = "none")
    })
    
-   # 7. Tabela de jogos filtrada pela sede (ou todas as sedes da edição)
+   # Dicionário de tradução de seleções/países para português
+   
+   traduzir_selecao <- function(x) {
+     mapa_paises <- c(
+       "Afghanistan" = "Afeganistão",
+       "Algeria" = "Argélia",
+       "Angola" = "Angola",
+       "Argentina" = "Argentina",
+       "Australia" = "Austrália",
+       "Austria" = "Áustria",
+       "Belgium" = "Bélgica",
+       "Bolivia" = "Bolívia",
+       "Bosnia and Herzegovina" = "Bósnia e Herzegovina",
+       "Brazil" = "Brasil",
+       "Bulgaria" = "Bulgária",
+       "Cameroon" = "Camarões",
+       "Canada" = "Canadá",
+       "Chile" = "Chile",
+       "China" = "China",
+       "China PR" = "China",
+       "Colombia" = "Colômbia",
+       "Costa Rica" = "Costa Rica",
+       "Croatia" = "Croácia",
+       "Cuba" = "Cuba",
+       "Czech Republic" = "República Tcheca",
+       "Czechia" = "Tchéquia",
+       "Czechoslovakia" = "Tchecoslováquia",
+       "Denmark" = "Dinamarca",
+       "Dutch East Indies" = "Índias Orientais Holandesas",
+       "Ecuador" = "Equador",
+       "Egypt" = "Egito",
+       "El Salvador" = "El Salvador",
+       "England" = "Inglaterra",
+       "France" = "França",
+       "Germany" = "Alemanha",
+       "Germany FR" = "Alemanha Ocidental",
+       "Ghana" = "Gana",
+       "Greece" = "Grécia",
+       "Haiti" = "Haiti",
+       "Honduras" = "Honduras",
+       "Hungary" = "Hungria",
+       "Iceland" = "Islândia",
+       "Iran" = "Irã",
+       "Iraq" = "Iraque",
+       "Ireland" = "Irlanda",
+       "Republic of Ireland" = "Irlanda",
+       "Northern Ireland" = "Irlanda do Norte",
+       "Israel" = "Israel",
+       "Italy" = "Itália",
+       "Ivory Coast" = "Costa do Marfim",
+       "Côte d'Ivoire" = "Costa do Marfim",
+       "Jamaica" = "Jamaica",
+       "Japan" = "Japão",
+       "Kuwait" = "Kuwait",
+       "Mexico" = "México",
+       "Morocco" = "Marrocos",
+       "Netherlands" = "Holanda",
+       "New Zealand" = "Nova Zelândia",
+       "Nigeria" = "Nigéria",
+       "North Korea" = "Coreia do Norte",
+       "Norway" = "Noruega",
+       "Panama" = "Panamá",
+       "Paraguay" = "Paraguai",
+       "Peru" = "Peru",
+       "Poland" = "Polônia",
+       "Portugal" = "Portugal",
+       "Romania" = "Romênia",
+       "Russia" = "Rússia",
+       "Saudi Arabia" = "Arábia Saudita",
+       "Scotland" = "Escócia",
+       "Senegal" = "Senegal",
+       "Serbia" = "Sérvia",
+       "Serbia and Montenegro" = "Sérvia e Montenegro",
+       "Slovakia" = "Eslováquia",
+       "Slovenia" = "Eslovênia",
+       "South Africa" = "África do Sul",
+       "South Korea" = "Coreia do Sul",
+       "Soviet Union" = "União Soviética",
+       "Spain" = "Espanha",
+       "Sweden" = "Suécia",
+       "Switzerland" = "Suíça",
+       "Togo" = "Togo",
+       "Trinidad and Tobago" = "Trinidad e Tobago",
+       "Tunisia" = "Tunísia",
+       "Turkey" = "Turquia",
+       "Ukraine" = "Ucrânia",
+       "United Arab Emirates" = "Emirados Árabes Unidos",
+       "United States" = "Estados Unidos",
+       "USA" = "Estados Unidos",
+       "Uruguay" = "Uruguai",
+       "Wales" = "País de Gales",
+       "Yugoslavia" = "Iugoslávia",
+       "Zaire" = "Zaire"
+     )
+     
+     res <- unname(mapa_paises[x])
+     ifelse(is.na(res), x, res)
+   }
+   
+   # 7. Tabela de jogos: seleções em português, sem coluna de público e células centralizadas
+   
    output$tabela_jogos_sede <- renderTable({
      req(input$cidade_sede_filtro)
      df_tab <- partidas_edicao()
@@ -756,15 +1081,30 @@ nav_panel(
      if (input$cidade_sede_filtro != "TODAS") {
        df_tab <- df_tab %>% filter(city == input$cidade_sede_filtro)
      }
+     if ("date" %in% names(df_tab)) {
+       df_tab <- df_tab %>% arrange(date)
+     }
      
-     df_tab %>%
-       transmute(
-         Fase = stage,
-         Partida = paste(home_team, "x", away_team),
-         Placar = paste0(home_score, " - ", away_score),
-         Sede = city
-       )
-   }, striped = TRUE, hover = TRUE, spacing = "xs", width = "100%")  
+     tem_win_cond <- "win_conditions" %in% names(df_tab)
+     fase_pt <- traduzir_fase(df_tab$stage)
+     home_pt <- traduzir_selecao(df_tab$home_team)
+     away_pt <- traduzir_selecao(df_tab$away_team)
+     cond_pt <- if (tem_win_cond) traduzir_condicao_vitoria(df_tab$win_conditions) else rep("", nrow(df_tab))
+     
+     placar_col <- ifelse(
+       !is.na(cond_pt) & cond_pt != "",
+       paste0(df_tab$home_score, " - ", df_tab$away_score, " (", cond_pt, ")"),
+       paste0(df_tab$home_score, " - ", df_tab$away_score)
+     )
+     
+     data.frame(
+       Fase = fase_pt,
+       Partida = paste(home_pt, "x", away_pt),
+       Placar = placar_col,
+       Sede = df_tab$city,
+       check.names = FALSE
+     )
+   }, striped = TRUE, hover = TRUE, spacing = "xs", align = "c", width = "100%")
    
 }
 
