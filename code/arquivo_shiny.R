@@ -25,6 +25,8 @@ setwd(raiz_projeto)
 on.exit(setwd(dir_anterior), add = TRUE)
 
 source("code/01_read_data.R")
+source("code/aba_gols.R", encoding = "UTF-8")
+source("code/aba_podio.R", encoding = "UTF-8")
 
 wc_raw <- load_world_cup_data("data/raw")
 wc_df <- wc_raw$worldcups
@@ -288,12 +290,14 @@ decadas_lista <- lapply(seq(1930, 2010, by = 10), function(d) {
   )
 })
 
-
+#============================================================================
 # Interface do usuário (UI) do aplicativo Shiny (Painel Desempenho das seleções)
+#============================================================================
 
 ui <- page_navbar(
   title = "Estatísticas das Copas do Mundo de Futebol: 1930-2018",
   theme = bs_theme(version = 5, bootswatch = "flatly"),
+  #============================================================================
   nav_panel(
     title = "Desempenho por seleção",
     layout_sidebar(
@@ -356,7 +360,7 @@ ui <- page_navbar(
   ),
 
   # Interface do usuário (UI) do aplicativo Shiny (Painel País sede e público)
-  
+  #===========================================================================
   nav_panel(
     "Países, cidades sedes e Jogos",
     layout_sidebar(
@@ -468,7 +472,7 @@ ui <- page_navbar(
   ),
   
 # Interface do usuário (UI) do aplicativo Shiny (Desempenho das seleções por copa)
-
+#============================================================================
 nav_panel(
   "Gols em Copas",
   layout_sidebar(
@@ -590,9 +594,14 @@ nav_panel(
       )
     )
   )
-))
+),
+aba_gols_ui("gols"),        # Aba "Gols por Edição"
+aba_podio_ui("podio")       # Aba "Campeões e Pódio"
+)
 
+#============================================================================
 # Servidor do aplicativo Shiny
+#============================================================================
 
 ## Traduçao dos nomes dos países sedes para português
 
@@ -693,6 +702,8 @@ traduzir_condicao_vitoria <- function(cond_vec) {
   }, character(1))
 }
 
+#============================================================================
+#============================================================================
     
   server <- function(input, output, session) {
   
@@ -1588,6 +1599,12 @@ traduzir_condicao_vitoria <- function(cond_vec) {
        check.names = FALSE
      )
    }, striped = TRUE, hover = TRUE, spacing = "xs", align = "c", width = "100%")
+   
+   # Aba "Gols por Edição"
+   aba_gols_server("gols", wc_df)
+   
+   # Aba "Campeões e Pódio"
+   aba_podio_server("podio", wc_df)
    
 }
 
